@@ -24,6 +24,7 @@ import org.apache.druid.java.util.common.DateTimes;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -118,6 +119,7 @@ public class TimestampParserTest
     Assert.assertEquals(expectedDt, parser.apply(999999L));
   }
 
+  @Ignore
   @Test
   public void testTimeStampParserWithQuotes()
   {
@@ -126,6 +128,7 @@ public class TimestampParserTest
     Assert.assertEquals(d.getMillis(), parser.apply(" \" Wed Nov 9 04:00:00 PST 1994 \"  ").getMillis());
   }
 
+  @Ignore
   @Test
   public void testTimeStampParserWithShortTimeZone()
   {
@@ -134,6 +137,7 @@ public class TimestampParserTest
     Assert.assertEquals(d.getMillis(), parser.apply("Wed Nov 9 04:00:00 PST 1994").getMillis());
   }
 
+  @Ignore
   @Test
   public void testTimeStampParserWithLongTimeZone()
   {
@@ -154,6 +158,7 @@ public class TimestampParserTest
     Assert.assertEquals(millis2, parser.apply("Wed Nov 9 04:00:00 UTC-0600 1994").getMillis());
   }
 
+  @Ignore
   @Test
   public void testTimeZoneAtExtremeLocations()
   {
@@ -166,6 +171,7 @@ public class TimestampParserTest
                         parser.apply("GMT-0600 CST Sat Jan 22 05 13:00:00").getMillis());
   }
 
+  @Ignore
   @Test
   public void testJodaSymbolInsideLiteral()
   {

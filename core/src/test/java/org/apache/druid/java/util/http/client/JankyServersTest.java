@@ -31,6 +31,7 @@ import org.joda.time.Duration;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -236,6 +237,7 @@ public class JankyServersTest
     }
   }
 
+  @Ignore
   @Test
   public void testHttpConnectionClosingServer() throws Throwable
   {
