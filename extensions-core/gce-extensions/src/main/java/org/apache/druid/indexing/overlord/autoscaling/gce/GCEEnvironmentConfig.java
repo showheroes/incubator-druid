@@ -17,56 +17,56 @@
  * under the License.
  */
 
-package org.apache.druid.indexing.overlord.autoscaling.ec2;
+package org.apache.druid.indexing.overlord.autoscaling.gce;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  */
-public class EC2EnvironmentConfig
+public class GCEEnvironmentConfig
 {
-  private final String availabilityZone;
-  private final EC2NodeData nodeData;
-  private final EC2UserData userData;
+  private final String projectId;
+  private final String applicationName;
+  private final String zoneName;
 
   @JsonCreator
-  public EC2EnvironmentConfig(
-      @JsonProperty("availabilityZone") String availabilityZone,
-      @JsonProperty("nodeData") EC2NodeData nodeData,
-      @JsonProperty("userData") EC2UserData userData
+  public GCEEnvironmentConfig(
+      @JsonProperty("projectId") String projectId,
+      @JsonProperty("applicationName") String applicationName,
+      @JsonProperty("zoneName") String zoneName
   )
   {
-    this.availabilityZone = availabilityZone;
-    this.nodeData = nodeData;
-    this.userData = userData;
+    this.projectId = projectId;
+    this.applicationName = applicationName;
+    this.zoneName = zoneName;
   }
 
   @JsonProperty
-  public String getAvailabilityZone()
+  public String getProjectId()
   {
-    return availabilityZone;
+    return projectId;
   }
 
   @JsonProperty
-  public EC2NodeData getNodeData()
+  public String getApplicationName()
   {
-    return nodeData;
+    return applicationName;
   }
 
   @JsonProperty
-  public EC2UserData getUserData()
+  public String getZoneName()
   {
-    return userData;
+    return zoneName;
   }
 
   @Override
   public String toString()
   {
-    return "EC2EnvironmentConfig{" +
-           "availabilityZone='" + availabilityZone + '\'' +
-           ", nodeData=" + nodeData +
-           ", userData=" + userData +
+    return "GCEEnvironmentConfig{" +
+           "projectId='" + projectId + '\'' +
+           ", applicationName='" + applicationName + '\'' +
+           ", zoneName='" + zoneName + '\'' +
            '}';
   }
 
@@ -80,15 +80,15 @@ public class EC2EnvironmentConfig
       return false;
     }
 
-    EC2EnvironmentConfig that = (EC2EnvironmentConfig) o;
+    GCEEnvironmentConfig that = (GCEEnvironmentConfig) o;
 
-    if (availabilityZone != null ? !availabilityZone.equals(that.availabilityZone) : that.availabilityZone != null) {
+    if (projectId != null ? !projectId.equals(that.projectId) : that.projectId != null) {
       return false;
     }
-    if (nodeData != null ? !nodeData.equals(that.nodeData) : that.nodeData != null) {
+    if (applicationName != null ? !applicationName.equals(that.applicationName) : that.applicationName != null) {
       return false;
     }
-    if (userData != null ? !userData.equals(that.userData) : that.userData != null) {
+    if (zoneName != null ? !zoneName.equals(that.zoneName) : that.zoneName != null) {
       return false;
     }
 
@@ -98,9 +98,9 @@ public class EC2EnvironmentConfig
   @Override
   public int hashCode()
   {
-    int result = availabilityZone != null ? availabilityZone.hashCode() : 0;
-    result = 31 * result + (nodeData != null ? nodeData.hashCode() : 0);
-    result = 31 * result + (userData != null ? userData.hashCode() : 0);
+    int result = projectId != null ? projectId.hashCode() : 0;
+    result = 31 * result + (applicationName != null ? applicationName.hashCode() : 0);
+    result = 31 * result + (zoneName != null ? zoneName.hashCode() : 0);
     return result;
   }
 }

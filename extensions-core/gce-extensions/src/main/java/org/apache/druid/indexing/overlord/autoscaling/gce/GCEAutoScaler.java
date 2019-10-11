@@ -17,61 +17,58 @@
  * under the License.
  */
 
-package org.apache.druid.indexing.overlord.autoscaling.ec2;
+package org.apache.druid.indexing.overlord.autoscaling.gce;
 
-import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
-import com.amazonaws.services.ec2.model.DescribeInstancesResult;
-import com.amazonaws.services.ec2.model.Filter;
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.InstanceNetworkInterfaceSpecification;
-import com.amazonaws.services.ec2.model.Placement;
-import com.amazonaws.services.ec2.model.Reservation;
-import com.amazonaws.services.ec2.model.RunInstancesRequest;
-import com.amazonaws.services.ec2.model.RunInstancesResult;
-import com.amazonaws.services.ec2.model.TerminateInstancesRequest;
-import com.fasterxml.jackson.annotation.JacksonInject;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.google.common.base.Function;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.Lists;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.xml.crypto.dsig.spec.XPathType.Filter;
+
 import org.apache.druid.indexing.overlord.autoscaling.AutoScaler;
 import org.apache.druid.indexing.overlord.autoscaling.AutoScalingData;
 import org.apache.druid.indexing.overlord.autoscaling.SimpleWorkerProvisioningConfig;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.fasterxml.jackson.annotation.JacksonInject;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.google.api.client.http.HttpRequestInitializer;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.ComputeScopes;
+import com.google.api.services.compute.model.Instance;
+import com.google.api.services.compute.model.InstanceList;
+import com.google.api.services.compute.model.Reservation;
+import com.google.auth.http.HttpCredentialsAdapter;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.common.base.Function;
+import com.google.common.collect.FluentIterable;
+import com.google.common.collect.Lists;
 
 /**
  */
 @JsonTypeName("ec2")
-public class EC2AutoScaler implements AutoScaler<EC2EnvironmentConfig>
+public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
 {
   private static final EmittingLogger log = new EmittingLogger(EC2AutoScaler.class);
   public static final int MAX_AWS_FILTER_VALUES = 100;
 
   private final int minNumWorkers;
   private final int maxNumWorkers;
-  private final EC2EnvironmentConfig envConfig;
-  private final AmazonEC2 amazonEC2Client;
+  private final GCEEnvironmentConfig envConfig;
   private final SimpleWorkerProvisioningConfig config;
 
   @JsonCreator
-  public EC2AutoScaler(
+  public GCEAutoScaler(
       @JsonProperty("minNumWorkers") int minNumWorkers,
       @JsonProperty("maxNumWorkers") int maxNumWorkers,
-      @JsonProperty("envConfig") EC2EnvironmentConfig envConfig,
-      @JacksonInject AmazonEC2 amazonEC2Client,
+      @JsonProperty("envConfig") GCEEnvironmentConfig envConfig,
       @JacksonInject SimpleWorkerProvisioningConfig config
   )
   {
     this.minNumWorkers = minNumWorkers;
     this.maxNumWorkers = maxNumWorkers;
     this.envConfig = envConfig;
-    this.amazonEC2Client = amazonEC2Client;
     this.config = config;
   }
 
@@ -91,7 +88,7 @@ public class EC2AutoScaler implements AutoScaler<EC2EnvironmentConfig>
 
   @Override
   @JsonProperty
-  public EC2EnvironmentConfig getEnvConfig()
+  public GCEEnvironmentConfig getEnvConfig()
   {
     return envConfig;
   }
@@ -99,87 +96,40 @@ public class EC2AutoScaler implements AutoScaler<EC2EnvironmentConfig>
   @Override
   public AutoScalingData provision()
   {
-    try {
-      final EC2NodeData workerConfig = envConfig.getNodeData();
-      final String userDataBase64;
+	  try {
+	  // Authenticate using Google Application Default Credentials.
+      GoogleCredentials credentials = GoogleCredentials.getApplicationDefault();
+      List<String> scopes = new ArrayList<>();
 
-      if (envConfig.getUserData() == null) {
-        userDataBase64 = null;
-      } else {
-        if (config.getWorkerVersion() == null) {
-          userDataBase64 = envConfig.getUserData().getUserDataBase64();
-        } else {
-          userDataBase64 = envConfig.getUserData()
-                                    .withVersion(config.getWorkerVersion())
-                                    .getUserDataBase64();
-        }
-      }
+      scopes.add(ComputeScopes.COMPUTE);
+      credentials = credentials.createScoped(scopes);
+      HttpRequestInitializer requestInitializer = new HttpCredentialsAdapter(credentials);
 
-      RunInstancesRequest request = new RunInstancesRequest(
-          workerConfig.getAmiId(),
-          workerConfig.getMinInstances(),
-          workerConfig.getMaxInstances()
-      )
-          .withInstanceType(workerConfig.getInstanceType())
-          .withPlacement(new Placement(envConfig.getAvailabilityZone()))
-          .withKeyName(workerConfig.getKeyName())
-          .withIamInstanceProfile(
-              workerConfig.getIamProfile() == null
-              ? null
-              : workerConfig.getIamProfile().toIamInstanceProfileSpecification()
-          )
-          .withUserData(userDataBase64);
-
-      // InstanceNetworkInterfaceSpecification.getAssociatePublicIpAddress may be
-      // true or false by default in EC2, depending on the subnet.
-      // Setting EC2NodeData.getAssociatePublicIpAddress explicitly will use that value instead,
-      // leaving it null uses the EC2 default.
-      if (workerConfig.getAssociatePublicIpAddress() != null) {
-        request.withNetworkInterfaces(
-            new InstanceNetworkInterfaceSpecification()
-                .withAssociatePublicIpAddress(workerConfig.getAssociatePublicIpAddress())
-                .withSubnetId(workerConfig.getSubnetId())
-                .withGroups(workerConfig.getSecurityGroupIds())
-                .withDeviceIndex(0)
-        );
-      } else {
-        request
-            .withSecurityGroupIds(workerConfig.getSecurityGroupIds())
-            .withSubnetId(workerConfig.getSubnetId());
-      }
-
-      final RunInstancesResult result = amazonEC2Client.runInstances(request);
-
+      // Create Compute Engine object for listing instances.
+      Compute compute =
+          new Compute.Builder(httpTransport, JSON_FACTORY, requestInitializer)
+              .setApplicationName(envConfig.applicationName)
+              .build();
+      Compute.Instances.List instances = compute.instances().list(envConfig.projectId, envConfig.zoneName);
+      InstanceList list = instances.execute();
+      List<String> scopes = new ArrayList<>();
       final List<String> instanceIds = Lists.transform(
-          result.getReservation().getInstances(),
+          list.getItems(),
           new Function<Instance, String>()
           {
             @Override
             public String apply(Instance input)
             {
-              return input.getInstanceId();
+              return input.getName();
             }
           }
       );
 
       log.info("Created instances: %s", instanceIds);
-
-      return new AutoScalingData(
-          Lists.transform(
-              result.getReservation().getInstances(),
-              new Function<Instance, String>()
-              {
-                @Override
-                public String apply(Instance input)
-                {
-                  return input.getInstanceId();
-                }
-              }
-          )
-      );
+      return new AutoScalingData(instanceIds);
     }
     catch (Exception e) {
-      log.error(e, "Unable to provision any EC2 instances.");
+      log.error(e, "Unable to provision any GCE instances.");
     }
 
     return null;
