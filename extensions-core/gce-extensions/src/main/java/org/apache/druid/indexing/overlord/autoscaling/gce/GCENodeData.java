@@ -22,117 +22,47 @@ package org.apache.druid.indexing.overlord.autoscaling.gce;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.List;
-
 /**
  */
 public class GCENodeData
 {
-  private final String amiId;
-  private final String instanceType;
-  private final int minInstances;
-  private final int maxInstances;
-  private final List<String> securityGroupIds;
-  private final String keyName;
-  private final String subnetId;
-  private final GCEIamProfileData iamProfile;
-  private final Boolean associatePublicIpAddress;
+  private final int targetWorkers;
+  private final String applicationName;
+  private final String projectId;
+  private final String zoneName;
+  private final String instanceGroupManager;
 
   @JsonCreator
   public GCENodeData(
-      @JsonProperty("amiId") String amiId,
-      @JsonProperty("instanceType") String instanceType,
-      @JsonProperty("minInstances") int minInstances,
-      @JsonProperty("maxInstances") int maxInstances,
       @JsonProperty("targetWorkers") int targetWorkers,
-      @JsonProperty("securityGroupIds") List<String> securityGroupIds,
-      @JsonProperty("keyName") String keyName,
-      @JsonProperty("subnetId") String subnetId,
-      @JsonProperty("iamProfile") GCEIamProfileData iamProfile,
-      @JsonProperty("associatePublicIpAddress") Boolean associatePublicIpAddress,
       @JsonProperty("applicationName") String applicationName,
       @JsonProperty("projectId") String projectId,
-      @JsonProperty("zoneName") String zoneName
-  )
+      @JsonProperty("zoneName") String zoneName,
+      @JsonProperty("instanceGroupManager") String instanceGroupManager
+      )
   {
-    this.amiId = amiId;
-    this.instanceType = instanceType;
-    this.minInstances = minInstances;
-    this.maxInstances = maxInstances;
-    this.securityGroupIds = securityGroupIds;
-    this.keyName = keyName;
-    this.subnetId = subnetId;
-    this.iamProfile = iamProfile;
-    this.associatePublicIpAddress = associatePublicIpAddress;
+    this.targetWorkers = targetWorkers;
+    this.applicationName = applicationName;
+    this.projectId = projectId;
+    this.zoneName = zoneName;
+    this.instanceGroupManager = instanceGroupManager;
   }
 
   @JsonProperty
-  public String getAmiId()
+  public int getTargetWorkers()
   {
-    return amiId;
-  }
-
-  @JsonProperty
-  public String getInstanceType()
-  {
-    return instanceType;
-  }
-
-  @JsonProperty
-  public int getMinInstances()
-  {
-    return minInstances;
-  }
-
-  @JsonProperty
-  public int getMaxInstances()
-  {
-    return maxInstances;
-  }
-
-  @JsonProperty
-  public List<String> getSecurityGroupIds()
-  {
-    return securityGroupIds;
-  }
-
-  @JsonProperty
-  public String getKeyName()
-  {
-    return keyName;
-  }
-
-  @JsonProperty
-  public String getSubnetId()
-  {
-    return subnetId;
-  }
-
-  @JsonProperty
-  public GCEIamProfileData getIamProfile()
-  {
-    return iamProfile;
-  }
-
-  @JsonProperty
-  public Boolean getAssociatePublicIpAddress()
-  {
-    return associatePublicIpAddress;
+    return targetWorkers;
   }
 
   @Override
   public String toString()
   {
     return "GCENodeData{" +
-           "amiId='" + amiId + '\'' +
-           ", instanceType='" + instanceType + '\'' +
-           ", minInstances=" + minInstances +
-           ", maxInstances=" + maxInstances +
-           ", securityGroupIds=" + securityGroupIds +
-           ", keyName='" + keyName + '\'' +
-           ", subnetId='" + subnetId + '\'' +
-           ", iamProfile=" + iamProfile +
-           '}';
+        ", projectId=" + projectId +
+        ", applicationName=" + applicationName +
+        ", zoneName=" + zoneName +
+        ", targetWorkers=" + targetWorkers +
+        '}';
   }
 
   @Override
@@ -147,28 +77,16 @@ public class GCENodeData
 
     GCENodeData that = (GCENodeData) o;
 
-    if (maxInstances != that.maxInstances) {
+    if (targetWorkers != that.targetWorkers) {
       return false;
     }
-    if (minInstances != that.minInstances) {
+    if (applicationName != that.applicationName) {
       return false;
     }
-    if (amiId != null ? !amiId.equals(that.amiId) : that.amiId != null) {
+    if (projectId != that.projectId) {
       return false;
     }
-    if (iamProfile != null ? !iamProfile.equals(that.iamProfile) : that.iamProfile != null) {
-      return false;
-    }
-    if (instanceType != null ? !instanceType.equals(that.instanceType) : that.instanceType != null) {
-      return false;
-    }
-    if (keyName != null ? !keyName.equals(that.keyName) : that.keyName != null) {
-      return false;
-    }
-    if (securityGroupIds != null ? !securityGroupIds.equals(that.securityGroupIds) : that.securityGroupIds != null) {
-      return false;
-    }
-    if (subnetId != null ? !subnetId.equals(that.subnetId) : that.subnetId != null) {
+    if (zoneName != that.zoneName) {
       return false;
     }
 
@@ -178,14 +96,31 @@ public class GCENodeData
   @Override
   public int hashCode()
   {
-    int result = amiId != null ? amiId.hashCode() : 0;
-    result = 31 * result + (instanceType != null ? instanceType.hashCode() : 0);
-    result = 31 * result + minInstances;
-    result = 31 * result + maxInstances;
-    result = 31 * result + (securityGroupIds != null ? securityGroupIds.hashCode() : 0);
-    result = 31 * result + (keyName != null ? keyName.hashCode() : 0);
-    result = 31 * result + (subnetId != null ? subnetId.hashCode() : 0);
-    result = 31 * result + (iamProfile != null ? iamProfile.hashCode() : 0);
+    int result = projectId != null ? projectId.hashCode() : 0;
+    result = 31 * result + (applicationName != null ? applicationName.hashCode() : 0);
+    result = 31 * result + (zoneName != null ? zoneName.hashCode() : 0);
+    result = 31 * result + (instanceGroupManager != null ? instanceGroupManager.hashCode() : 0);
+    result = 31 * result + targetWorkers;
     return result;
+  }
+
+  public String getZoneName()
+  {
+    return zoneName;
+  }
+
+  public String getProjectId()
+  {
+    return projectId;
+  }
+
+  public String getApplicationName()
+  {
+    return applicationName;
+  }
+
+  public String getInstanceGroupManager()
+  {
+    return instanceGroupManager;
   }
 }
