@@ -41,15 +41,11 @@ import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
-import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceGroupManagersListManagedInstancesResponse;
 import com.google.api.services.compute.model.ManagedInstance;
 import com.google.api.services.compute.model.Operation;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.common.base.Function;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.Lists;
 
 /**
  */
@@ -164,19 +160,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     //   }
 
     try {
-      return terminateWithIds(
-          Lists.transform(
-              instances,
-              new Function<Instance, String>()
-              {
-                @Override
-                public String apply(Instance input)
-                {
-                  return input.getInstanceId();
-                }
-              }
-              )
-          );
+      return terminateWithIds(ips);
     }
     catch (Exception e) {
       log.error(e, "Unable to terminate any instances.");
@@ -208,34 +192,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   @Override
   public List<String> ipToIdLookup(List<String> ips)
   {
-    final List<String> retVal = FluentIterable
-        // chunk requests to avoid hitting default AWS limits on filters
-        .from(Lists.partition(ips, MAX_AWS_FILTER_VALUES))
-        .transformAndConcat(new Function<List<String>, Iterable<Reservation>>()
-        {
-          @Override
-          public Iterable<Reservation> apply(List<String> input)
-          {
-
-          }
-        })
-        .transformAndConcat(new Function<Reservation, Iterable<Instance>>()
-        {
-          @Override
-          public Iterable<Instance> apply(Reservation reservation)
-          {
-            return reservation.getInstances();
-          }
-        })
-        .transform(new Function<Instance, String>()
-        {
-          @Override
-          public String apply(Instance instance)
-          {
-            return instance.getInstanceId();
-          }
-        }).toList();
-
+    List<String> retVal = null;
     log.debug("Performing lookup: %s --> %s", ips, retVal);
 
     return retVal;
@@ -244,34 +201,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   @Override
   public List<String> idToIpLookup(List<String> nodeIds)
   {
-    final List<String> retVal = FluentIterable
-        // chunk requests to avoid hitting default AWS limits on filters
-        .from(Lists.partition(nodeIds, MAX_AWS_FILTER_VALUES))
-        .transformAndConcat(new Function<List<String>, Iterable<Reservation>>()
-        {
-          @Override
-          public Iterable<Reservation> apply(List<String> input)
-          {
-
-          }
-        })
-        .transformAndConcat(new Function<Reservation, Iterable<Instance>>()
-        {
-          @Override
-          public Iterable<Instance> apply(Reservation reservation)
-          {
-            return reservation.getInstances();
-          }
-        })
-        .transform(new Function<Instance, String>()
-        {
-          @Override
-          public String apply(Instance instance)
-          {
-            return instance.getPrivateIpAddress();
-          }
-        }).toList();
-
+    List<String> retVal = null;
     log.debug("Performing lookup: %s --> %s", nodeIds, retVal);
 
     return retVal;
@@ -282,8 +212,6 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   {
     return "gceAutoScaler{" +
         "envConfig=" + envConfig +
-        ", maxNumWorkers=" + maxNumWorkers +
-        ", minNumWorkers=" + minNumWorkers +
         '}';
   }
 
@@ -297,14 +225,8 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
       return false;
     }
 
-    gceAutoScaler that = (gceAutoScaler) o;
+    GCEAutoScaler that = (GCEAutoScaler) o;
 
-    if (maxNumWorkers != that.maxNumWorkers) {
-      return false;
-    }
-    if (minNumWorkers != that.minNumWorkers) {
-      return false;
-    }
     if (envConfig != null ? !envConfig.equals(that.envConfig) : that.envConfig != null) {
       return false;
     }
@@ -315,8 +237,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   @Override
   public int hashCode()
   {
-    int result = minNumWorkers;
-    result = 31 * result + maxNumWorkers;
+    int result = 0;
     result = 31 * result + (envConfig != null ? envConfig.hashCode() : 0);
     return result;
   }
