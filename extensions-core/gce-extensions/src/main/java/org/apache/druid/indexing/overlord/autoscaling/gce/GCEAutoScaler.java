@@ -32,7 +32,10 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
 import com.google.api.services.compute.model.Instance;
+import com.google.api.services.compute.model.InstanceGroupManagersListManagedInstancesResponse;
 import com.google.api.services.compute.model.InstanceList;
+import com.google.api.services.compute.model.ManagedInstance;
+import com.google.api.services.compute.model.Operation;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.common.base.Function;
 import com.google.common.collect.FluentIterable;
@@ -44,6 +47,8 @@ import org.apache.druid.java.util.emitter.EmittingLogger;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.Credentials;
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -98,31 +103,48 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   {
     return envConfig;
   }
+  
+  public static Compute createComputeService() throws IOException, GeneralSecurityException {
+    HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
+    JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
+    List<String> scopes = new ArrayList<>();
 
+    scopes.add(ComputeScopes.COMPUTE);
+
+    // Authenticate using Google Application Default Credentials.
+    GoogleCredentials credentials = GoogleCredentials.getApplicationDefault().createScoped(scopes);
+    HttpRequestInitializer requestInitializer = new HttpCredentialsAdapter(credentials);
+
+    return new Compute.Builder(httpTransport, jsonFactory, requestInitializer)
+        .setApplicationName("Google-ComputeSample/0.1")
+        .build();
+  }
+  
   @Override
   public AutoScalingData provision()
   {
-	 try {
-	      httpTransport = GoogleNetHttpTransport.newTrustedTransport();
-	      List<String> scopes = new ArrayList<>();
-	      scopes.add(ComputeScopes.COMPUTE);
+    try {
+      Compute computeService = createComputeService();
+      Compute.InstanceGroupManagers.Resize request =
+          computeService.instanceGroupManagers().resize(project, zone, 
+              instanceGroupManager, envConfig.nodeData.targetWorkers);
 
-	      // Authenticate using Google Application Default Credentials.
-	      GoogleCredentials credentials = GoogleCredentials.getApplicationDefault().createScoped(scopes);
-	      HttpRequestInitializer requestInitializer = new HttpCredentialsAdapter(credentials);
+      Operation response = request.execute();
+    
+      Compute.InstanceGroupManagers.ListManagedInstances request2 =
+          computeService
+              .instanceGroupManagers()
+              .listManagedInstances(project, zone, instanceGroupManager);
 
-	      // Create Compute Engine object for listing instances.
-	      Compute compute =
-	    		  new Compute.Builder(httpTransport, JSON_FACTORY, requestInitializer)
-	    		  .setApplicationName(envConfig.getApplicationName())
-	    		  .build();
-	      Compute.Instances.List instances = compute.instances().list(envConfig.getProjectId(), envConfig.getZoneName());
-	      InstanceList list = instances.execute();
-	      List<String> instanceIds = new ArrayList<>();
-	      for (Instance instance : list.getItems()) {
-	    	  instanceIds.add(instance.getName());
-	      }
-	      return new AutoScalingData(instanceIds);
+      InstanceGroupManagersListManagedInstancesResponse response2 = request2.execute();
+      List<ManagedInstance> instances = response2.getManagedInstances();
+      List<String> instanceIds = new ArrayList<>();
+
+      for (ManagedInstance instance : instances) {
+          instanceIds.add(instance.getInstance());
+      }
+	      
+	    return new AutoScalingData(instanceIds);
     }
     catch (Exception e) {
       log.error(e, "Unable to provision any gce instances.");
@@ -138,10 +160,10 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
       return new AutoScalingData(new ArrayList<>());
     }
 
-    List<Instance> instances = new ArrayList<>();
-    for () {
-      instances.addAll("pippo");
-    }
+ //   List<Instance> instances = new ArrayList<>();
+ //   for () {
+ //    instances.addAll("pippo");
+ //   }
 
     try {
       return terminateWithIds(

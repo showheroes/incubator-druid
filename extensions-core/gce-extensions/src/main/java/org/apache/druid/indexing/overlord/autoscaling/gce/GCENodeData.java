@@ -44,6 +44,7 @@ public class GCENodeData
       @JsonProperty("instanceType") String instanceType,
       @JsonProperty("minInstances") int minInstances,
       @JsonProperty("maxInstances") int maxInstances,
+      @JsonProperty("targetWorkers") int targetWorkers,
       @JsonProperty("securityGroupIds") List<String> securityGroupIds,
       @JsonProperty("keyName") String keyName,
       @JsonProperty("subnetId") String subnetId,
