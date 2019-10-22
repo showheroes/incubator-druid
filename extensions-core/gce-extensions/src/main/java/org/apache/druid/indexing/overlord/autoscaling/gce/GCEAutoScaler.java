@@ -20,6 +20,16 @@
 package org.apache.druid.indexing.overlord.autoscaling.gce;
 
 
+import java.io.IOException;
+import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.druid.indexing.overlord.autoscaling.AutoScaler;
+import org.apache.druid.indexing.overlord.autoscaling.AutoScalingData;
+import org.apache.druid.indexing.overlord.autoscaling.SimpleWorkerProvisioningConfig;
+import org.apache.druid.java.util.emitter.EmittingLogger;
+
 import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -33,24 +43,13 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceGroupManagersListManagedInstancesResponse;
-import com.google.api.services.compute.model.InstanceList;
 import com.google.api.services.compute.model.ManagedInstance;
 import com.google.api.services.compute.model.Operation;
 import com.google.auth.http.HttpCredentialsAdapter;
+import com.google.auth.oauth2.GoogleCredentials;
 import com.google.common.base.Function;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.Lists;
-import org.apache.druid.indexing.overlord.autoscaling.AutoScaler;
-import org.apache.druid.indexing.overlord.autoscaling.AutoScalingData;
-import org.apache.druid.indexing.overlord.autoscaling.SimpleWorkerProvisioningConfig;
-import org.apache.druid.java.util.emitter.EmittingLogger;
-import com.google.auth.oauth2.GoogleCredentials;
-import com.google.auth.Credentials;
-
-import java.io.IOException;
-import java.security.GeneralSecurityException;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  */
@@ -59,8 +58,6 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
 {
   private static final EmittingLogger log = new EmittingLogger(GCEAutoScaler.class);
 
-  private final int minNumWorkers;
-  private final int maxNumWorkers;
   private final GCEEnvironmentConfig envConfig;
   private final SimpleWorkerProvisioningConfig config;
   /** Global instance of the HTTP transport. */
@@ -71,14 +68,10 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
 
   @JsonCreator
   public GCEAutoScaler(
-      @JsonProperty("minNumWorkers") int minNumWorkers,
-      @JsonProperty("maxNumWorkers") int maxNumWorkers,
       @JsonProperty("envConfig") GCEEnvironmentConfig envConfig,
       @JacksonInject SimpleWorkerProvisioningConfig config
-  )
+      )
   {
-    this.minNumWorkers = minNumWorkers;
-    this.maxNumWorkers = maxNumWorkers;
     this.envConfig = envConfig;
     this.config = config;
   }
@@ -87,14 +80,14 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   @JsonProperty
   public int getMinNumWorkers()
   {
-    return minNumWorkers;
+    return envConfig.getNodeData().getTargetWorkers();
   }
 
   @Override
   @JsonProperty
   public int getMaxNumWorkers()
   {
-    return maxNumWorkers;
+    return envConfig.getNodeData().getTargetWorkers();
   }
 
   @Override
@@ -103,7 +96,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   {
     return envConfig;
   }
-  
+
   public static Compute createComputeService() throws IOException, GeneralSecurityException {
     HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
     JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
@@ -119,32 +112,37 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
         .setApplicationName("Google-ComputeSample/0.1")
         .build();
   }
-  
+
   @Override
   public AutoScalingData provision()
   {
+    final String project = envConfig.getNodeData().getProjectId();
+    final String zone = envConfig.getNodeData().getZoneName();
+    final int targetWorkers = envConfig.getNodeData().getTargetWorkers();
+    final String instanceGroupManager = envConfig.getNodeData().getInstanceGroupManager();
+
     try {
       Compute computeService = createComputeService();
       Compute.InstanceGroupManagers.Resize request =
-          computeService.instanceGroupManagers().resize(project, zone, 
-              instanceGroupManager, envConfig.nodeData.targetWorkers);
+          computeService.instanceGroupManagers().resize(project, zone,
+              instanceGroupManager, targetWorkers);
 
       Operation response = request.execute();
-    
+
       Compute.InstanceGroupManagers.ListManagedInstances request2 =
           computeService
-              .instanceGroupManagers()
-              .listManagedInstances(project, zone, instanceGroupManager);
+          .instanceGroupManagers()
+          .listManagedInstances(project, zone, instanceGroupManager);
 
       InstanceGroupManagersListManagedInstancesResponse response2 = request2.execute();
       List<ManagedInstance> instances = response2.getManagedInstances();
       List<String> instanceIds = new ArrayList<>();
 
       for (ManagedInstance instance : instances) {
-          instanceIds.add(instance.getInstance());
+        instanceIds.add(instance.getInstance());
       }
-	      
-	    return new AutoScalingData(instanceIds);
+
+      return new AutoScalingData(instanceIds);
     }
     catch (Exception e) {
       log.error(e, "Unable to provision any gce instances.");
@@ -160,10 +158,10 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
       return new AutoScalingData(new ArrayList<>());
     }
 
- //   List<Instance> instances = new ArrayList<>();
- //   for () {
- //    instances.addAll("pippo");
- //   }
+    //   List<Instance> instances = new ArrayList<>();
+    //   for () {
+    //    instances.addAll("pippo");
+    //   }
 
     try {
       return terminateWithIds(
@@ -177,8 +175,8 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
                   return input.getInstanceId();
                 }
               }
-          )
-      );
+              )
+          );
     }
     catch (Exception e) {
       log.error(e, "Unable to terminate any instances.");
@@ -196,9 +194,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
 
     try {
       log.info("Terminating instances[%s]", ids);
-      amazongceClient.terminateInstances(
-          new TerminateInstancesRequest(ids)
-      );
+
 
       return new AutoScalingData(ids);
     }
@@ -220,9 +216,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
           @Override
           public Iterable<Reservation> apply(List<String> input)
           {
-            return amazongceClient.describeInstances(
-                new DescribeInstancesRequest().withFilters(new Filter("private-ip-address", input))
-            ).getReservations();
+
           }
         })
         .transformAndConcat(new Function<Reservation, Iterable<Instance>>()
@@ -258,9 +252,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
           @Override
           public Iterable<Reservation> apply(List<String> input)
           {
-            return amazongceClient.describeInstances(
-                new DescribeInstancesRequest().withFilters(new Filter("instance-id", input))
-            ).getReservations();
+
           }
         })
         .transformAndConcat(new Function<Reservation, Iterable<Instance>>()
@@ -289,10 +281,10 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   public String toString()
   {
     return "gceAutoScaler{" +
-           "envConfig=" + envConfig +
-           ", maxNumWorkers=" + maxNumWorkers +
-           ", minNumWorkers=" + minNumWorkers +
-           '}';
+        "envConfig=" + envConfig +
+        ", maxNumWorkers=" + maxNumWorkers +
+        ", minNumWorkers=" + minNumWorkers +
+        '}';
   }
 
   @Override
