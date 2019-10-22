@@ -26,49 +26,47 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public class GCEEnvironmentConfig
 {
-  private final String applicationName;
-  private final String projectId;
-  private final String zoneName;
-
+  private final String availabilityZone;
+  private final GCENodeData nodeData;
+  private final GCEUserData userData;
 
   @JsonCreator
   public GCEEnvironmentConfig(
-      @JsonProperty("applicationName") String applicationName,
-      @JsonProperty("projectId") String projectId,
-      @JsonProperty("zoneName") String zoneName
+      @JsonProperty("availabilityZone") String availabilityZone,
+      @JsonProperty("nodeData") GCENodeData nodeData,
+      @JsonProperty("userData") GCEUserData userData
   )
   {
-    this.applicationName = applicationName;
-    this.projectId = projectId;
-    this.zoneName = zoneName;
-
+    this.availabilityZone = availabilityZone;
+    this.nodeData = nodeData;
+    this.userData = userData;
   }
 
   @JsonProperty
-  public String getApplicationName()
+  public String getAvailabilityZone()
   {
-    return applicationName;
+    return availabilityZone;
   }
 
   @JsonProperty
-  public String getProjectId()
+  public GCENodeData getNodeData()
   {
-    return projectId;
+    return nodeData;
   }
 
   @JsonProperty
-  public String getZoneName()
+  public GCEUserData getUserData()
   {
-    return zoneName;
+    return userData;
   }
 
   @Override
   public String toString()
   {
     return "GCEEnvironmentConfig{" +
-           "applicationName='" + applicationName + '\'' +
-           ", projectId=" + projectId +
-           ", zoneName=" + zoneName +
+           "availabilityZone='" + availabilityZone + '\'' +
+           ", nodeData=" + nodeData +
+           ", userData=" + userData +
            '}';
   }
 
