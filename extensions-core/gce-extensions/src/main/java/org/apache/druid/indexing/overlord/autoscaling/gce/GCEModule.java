@@ -38,6 +38,5 @@ public class GCEModule implements DruidModule
   @Override
   public void configure(Binder binder)
   {
-
   }
 }

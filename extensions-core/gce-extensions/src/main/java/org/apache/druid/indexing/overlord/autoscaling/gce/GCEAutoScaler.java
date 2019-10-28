@@ -23,14 +23,16 @@ package org.apache.druid.indexing.overlord.autoscaling.gce;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 
+import com.google.api.services.compute.model.Instance;
+import com.google.api.services.compute.model.InstanceList;
 import org.apache.druid.indexing.overlord.autoscaling.AutoScaler;
 import org.apache.druid.indexing.overlord.autoscaling.AutoScalingData;
-import org.apache.druid.indexing.overlord.autoscaling.SimpleWorkerProvisioningConfig;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 
-import com.fasterxml.jackson.annotation.JacksonInject;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonTypeName;
@@ -41,11 +43,11 @@ import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
-import com.google.api.services.compute.model.InstanceGroupManagersListManagedInstancesResponse;
-import com.google.api.services.compute.model.ManagedInstance;
 import com.google.api.services.compute.model.Operation;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
+
+import static java.lang.String.format;
 
 /**
  */
@@ -55,35 +57,24 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   private static final EmittingLogger log = new EmittingLogger(GCEAutoScaler.class);
 
   private final GCEEnvironmentConfig envConfig;
-  private final SimpleWorkerProvisioningConfig config;
-  /** Global instance of the HTTP transport. */
-  private static HttpTransport httpTransport;
-  /** Global instance of the JSON factory. */
-  private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
-
 
   @JsonCreator
-  public GCEAutoScaler(
-      @JsonProperty("envConfig") GCEEnvironmentConfig envConfig,
-      @JacksonInject SimpleWorkerProvisioningConfig config
-      )
-  {
+  public GCEAutoScaler(@JsonProperty("envConfig") GCEEnvironmentConfig envConfig) {
     this.envConfig = envConfig;
-    this.config = config;
   }
 
   @Override
   @JsonProperty
   public int getMinNumWorkers()
   {
-    return envConfig.getNodeData().getTargetWorkers();
+    return envConfig.getMinWorkers();
   }
 
   @Override
   @JsonProperty
   public int getMaxNumWorkers()
   {
-    return envConfig.getNodeData().getTargetWorkers();
+    return envConfig.getMaxWorkers();
   }
 
   @Override
@@ -105,37 +96,37 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     HttpRequestInitializer requestInitializer = new HttpCredentialsAdapter(credentials);
 
     return new Compute.Builder(httpTransport, jsonFactory, requestInitializer)
-        .setApplicationName("Google-ComputeSample/0.1")
+        .setApplicationName("VR-Druid-Autoscaler/0.1")
         .build();
   }
 
+  /**
+   * When called, it tries to create envConfig.getTargetWorkers() instances at the time
+   * using the template in envConfig.getinstanceTemplate()
+   */
   @Override
   public AutoScalingData provision()
   {
-    final String project = envConfig.getNodeData().getProjectId();
-    final String zone = envConfig.getNodeData().getZoneName();
-    final int targetWorkers = envConfig.getNodeData().getTargetWorkers();
-    final String instanceGroupManager = envConfig.getNodeData().getInstanceGroupManager();
+    final String project = envConfig.getProjectId();
+    final String zone = envConfig.getZoneName();
+    final int targetWorkers = envConfig.getTargetWorkers();
+    final String instanceTemplate = envConfig.getinstanceTemplate();
 
     try {
+      List<String> instanceIds = new LinkedList<>();
       Compute computeService = createComputeService();
-      Compute.InstanceGroupManagers.Resize request =
-          computeService.instanceGroupManagers().resize(project, zone,
-              instanceGroupManager, targetWorkers);
-
-      Operation response = request.execute();
-
-      Compute.InstanceGroupManagers.ListManagedInstances request2 =
-          computeService
-          .instanceGroupManagers()
-          .listManagedInstances(project, zone, instanceGroupManager);
-
-      InstanceGroupManagersListManagedInstancesResponse response2 = request2.execute();
-      List<ManagedInstance> instances = response2.getManagedInstances();
-      List<String> instanceIds = new ArrayList<>();
-
-      for (ManagedInstance instance : instances) {
-        instanceIds.add(instance.getInstance());
+      for (int i = 0; i < targetWorkers; ++i) {
+        Instance instance = new Instance();
+        Compute.Instances.Insert request =
+                computeService.instances().insert(project, zone, instance);
+        request.setSourceInstanceTemplate(instanceTemplate);
+        Operation op = request.execute();
+        if (op.getError() == null) {
+          instanceIds.add(op.getName());
+        }
+        else {
+          log.error("Unable to provision instance: %s", op.getError().toPrettyString());
+        }
       }
 
       return new AutoScalingData(instanceIds);
@@ -147,6 +138,9 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     return null;
   }
 
+  /**
+   * Terminats the
+   */
   @Override
   public AutoScalingData terminate(List<String> ips)
   {
@@ -154,13 +148,9 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
       return new AutoScalingData(new ArrayList<>());
     }
 
-    //   List<Instance> instances = new ArrayList<>();
-    //   for () {
-    //    instances.addAll("pippo");
-    //   }
-
+    List<String> nodeIds = ipToIdLookup(ips);
     try {
-      return terminateWithIds(ips);
+      return terminateWithIds(nodeIds != null ? nodeIds: new LinkedList<>());
     }
     catch (Exception e) {
       log.error(e, "Unable to terminate any instances.");
@@ -177,10 +167,22 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     }
 
     try {
-      log.info("Terminating instances[%s]", ids);
+      List<String> deleted = new LinkedList<>();
+      final String project = envConfig.getProjectId();
+      final String zone = envConfig.getZoneName();
+      Compute computeService = createComputeService();
+      for(String id: ids) {
+        Compute.Instances.Delete request = computeService.instances().delete(project, zone, id);
+        Operation op = request.execute();
+        if (op.getError() == null) {
+          deleted.add(id);
+        }
+        else {
+          log.error("Unable to terminate %s: %s", id, op.getError().toPrettyString());
+        }
+      }
 
-
-      return new AutoScalingData(ids);
+      return new AutoScalingData(deleted);
     }
     catch (Exception e) {
       log.error(e, "Unable to terminate any instances.");
@@ -189,22 +191,89 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     return null;
   }
 
+  private String buildFilter(List<String> list, String key)
+  {
+    StringBuilder sb = new StringBuilder();
+    Iterator<String> it = list.iterator();
+    sb.append(format("(%s = \"%s\")", key, it.next()));
+    while (it.hasNext()) {
+      sb.append(" OR ").append(format("(%s = \"%s\")", key, it.next()));
+    }
+    return sb.toString();
+  }
+
   @Override
   public List<String> ipToIdLookup(List<String> ips)
   {
-    List<String> retVal = null;
-    log.debug("Performing lookup: %s --> %s", ips, retVal);
+    if (ips.isEmpty()) {
+      return new ArrayList<>();
+    }
 
-    return retVal;
+    final String project = envConfig.getProjectId();
+    final String zone = envConfig.getZoneName();
+
+    try {
+      Compute computeService = createComputeService();
+      Compute.Instances.List request = computeService.instances().list(project, zone);
+      request.setFilter(buildFilter(ips, "networkInterfaces.networkIP"));
+
+      List<String> instanceIds = new LinkedList<>();
+      InstanceList response;
+      do {
+        response = request.execute();
+        if (response.getItems() == null) {
+          continue;
+        }
+        for (Instance instance : response.getItems()) {
+          instanceIds.add(instance.getName());
+        }
+        request.setPageToken(response.getNextPageToken());
+      } while (response.getNextPageToken() != null);
+
+      return instanceIds;
+    }
+    catch (Exception e) {
+      log.error(e, "Unable to convert IPs to IDs.");
+    }
+
+    return null;
   }
 
   @Override
   public List<String> idToIpLookup(List<String> nodeIds)
   {
-    List<String> retVal = null;
-    log.debug("Performing lookup: %s --> %s", nodeIds, retVal);
+    if (nodeIds.isEmpty()) {
+      return new ArrayList<>();
+    }
 
-    return retVal;
+    final String project = envConfig.getProjectId();
+    final String zone = envConfig.getZoneName();
+
+    try {
+      Compute computeService = createComputeService();
+      Compute.Instances.List request = computeService.instances().list(project, zone);
+      request.setFilter(buildFilter(nodeIds, "name"));
+
+      List<String> instanceIps = new LinkedList<>();
+      InstanceList response;
+      do {
+        response = request.execute();
+        if (response.getItems() == null) {
+          continue;
+        }
+        for (Instance instance : response.getItems()) {
+          instanceIps.add(instance.getNetworkInterfaces().get(0).getNetworkIP());
+        }
+        request.setPageToken(response.getNextPageToken());
+      } while (response.getNextPageToken() != null);
+
+      return instanceIps;
+    }
+    catch (Exception e) {
+      log.error(e, "Unable to convert IDs to IPs.");
+    }
+
+    return null;
   }
 
   @Override

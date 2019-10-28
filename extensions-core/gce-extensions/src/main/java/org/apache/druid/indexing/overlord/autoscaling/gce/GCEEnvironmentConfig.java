@@ -26,48 +26,72 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  */
 public class GCEEnvironmentConfig
 {
-  private final String availabilityZone;
-  private final GCENodeData nodeData;
-  private final GCEUserData userData;
+  /**
+   * targetWorkers: the number of workers to try to spawn at each call to provision
+   * projectId: the id of the project where to operate
+   * zoneName: the name of the zone where to operata
+   * instanceTemplate: the template to use when creating the instances
+   * minworkers: the minimum number of workers in the pool (*)
+   * maxWorkers: the maximum number of workers in the pool (*)
+   *
+   * (*) both used by the caller of the AutoScaler to know if it makes sense to call
+   *     provision / terminate or if there is no hope that something would be done
+   */
+  private final int targetWorkers;
+  private final String projectId;
+  private final String zoneName;
+  private final String instanceTemplate;
+  // used by the caller of the AutoScaler
+  private final int minWorkers;
+  private final int maxWorkers;
 
   @JsonCreator
   public GCEEnvironmentConfig(
-      @JsonProperty("availabilityZone") String availabilityZone,
-      @JsonProperty("nodeData") GCENodeData nodeData,
-      @JsonProperty("userData") GCEUserData userData
+          @JsonProperty("targetWorkers") int targetWorkers,
+          @JsonProperty("minWorkers") int minWorkers,
+          @JsonProperty("maxWorkers") int maxWorkers,
+          @JsonProperty("projectId") String projectId,
+          @JsonProperty("zoneName") String zoneName,
+          @JsonProperty("instanceTemplate") String instanceTemplate
   )
   {
-    this.availabilityZone = availabilityZone;
-    this.nodeData = nodeData;
-    this.userData = userData;
+    this.targetWorkers = targetWorkers;
+    this.minWorkers = minWorkers;
+    this.maxWorkers = maxWorkers;
+    this.projectId = projectId;
+    this.zoneName = zoneName;
+    this.instanceTemplate = instanceTemplate;
   }
 
   @JsonProperty
-  public String getAvailabilityZone()
+  public int getTargetWorkers()
   {
-    return availabilityZone;
+    return targetWorkers;
   }
 
   @JsonProperty
-  public GCENodeData getNodeData()
+  public int getMinWorkers()
   {
-    return nodeData;
+    return minWorkers;
   }
 
   @JsonProperty
-  public GCEUserData getUserData()
+  public int getMaxWorkers()
   {
-    return userData;
+    return maxWorkers;
   }
 
   @Override
   public String toString()
   {
     return "GCEEnvironmentConfig{" +
-           "availabilityZone='" + availabilityZone + '\'' +
-           ", nodeData=" + nodeData +
-           ", userData=" + userData +
-           '}';
+            ", projectId=" + projectId +
+            ", zoneName=" + zoneName +
+            ", targetWorkers=" + targetWorkers +
+            ", instanceTemplate=" + instanceTemplate +
+            ", minWorkers=" + minWorkers +
+            ", maxWorkers=" + maxWorkers +
+            '}';
   }
 
   @Override
@@ -81,26 +105,39 @@ public class GCEEnvironmentConfig
     }
 
     GCEEnvironmentConfig that = (GCEEnvironmentConfig) o;
-
-    if (availabilityZone != null ? !availabilityZone.equals(that.availabilityZone) : that.availabilityZone != null) {
-      return false;
-    }
-    if (nodeData != null ? !nodeData.equals(that.nodeData) : that.nodeData != null) {
-      return false;
-    }
-    if (userData != null ? !userData.equals(that.userData) : that.userData != null) {
-      return false;
-    }
-
-    return true;
+    return (targetWorkers == that.targetWorkers &&
+            projectId.equals(that.projectId) &&
+            zoneName.equals(that.zoneName) &&
+            instanceTemplate.equals(that.instanceTemplate) &&
+            minWorkers != that.minWorkers &&
+            maxWorkers != that.maxWorkers
+    );
   }
 
   @Override
   public int hashCode()
   {
-    int result = availabilityZone != null ? availabilityZone.hashCode() : 0;
-    result = 31 * result + (nodeData != null ? nodeData.hashCode() : 0);
-    result = 31 * result + (userData != null ? userData.hashCode() : 0);
+    int result = projectId != null ? projectId.hashCode() : 0;
+    result = 31 * result + (zoneName != null ? zoneName.hashCode() : 0);
+    result = 31 * result + (instanceTemplate != null ? instanceTemplate.hashCode() : 0);
+    result = 31 * result + targetWorkers;
+    result = 31 * result + minWorkers;
+    result = 31 * result + maxWorkers;
     return result;
+  }
+
+  String getZoneName()
+  {
+    return zoneName;
+  }
+
+  String getProjectId()
+  {
+    return projectId;
+  }
+
+  String getinstanceTemplate()
+  {
+    return instanceTemplate;
   }
 }
