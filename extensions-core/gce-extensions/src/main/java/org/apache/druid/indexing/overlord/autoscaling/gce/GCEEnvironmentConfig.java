@@ -110,8 +110,7 @@ public class GCEEnvironmentConfig
             zoneName.equals(that.zoneName) &&
             instanceTemplate.equals(that.instanceTemplate) &&
             minWorkers != that.minWorkers &&
-            maxWorkers != that.maxWorkers
-    );
+            maxWorkers != that.maxWorkers);
   }
 
   @Override
