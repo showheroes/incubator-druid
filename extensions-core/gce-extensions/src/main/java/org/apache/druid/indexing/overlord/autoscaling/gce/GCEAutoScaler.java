@@ -189,8 +189,12 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
 
   private String buildFilter(List<String> list, String key)
   {
-    StringBuilder sb = new StringBuilder();
     Iterator<String> it = list.iterator();
+    if (!it.hasNext()) {
+      throw new IllegalArgumentException("List cannot be empty");
+    }
+
+    StringBuilder sb = new StringBuilder();
     sb.append(String.format(Locale.US, "(%s = \"%s\")", key, it.next()));
     while (it.hasNext()) {
       sb.append(" OR ").append(String.format(Locale.US, "(%s = \"%s\")", key, it.next()));
