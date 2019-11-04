@@ -134,7 +134,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   }
 
   /**
-   * Terminats the
+   * Terminats the instances in the list of IPs provided by the caller
    */
   @Override
   public AutoScalingData terminate(List<String> ips)
@@ -154,6 +154,9 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     return null;
   }
 
+  /**
+   * Terminats the instances in the list of IDs provided by the caller
+   */
   @Override
   public AutoScalingData terminateWithIds(List<String> ids)
   {
@@ -200,6 +203,9 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     return sb.toString();
   }
 
+  /**
+   * Converts the IPs to IDs
+   */
   @Override
   public List<String> ipToIdLookup(List<String> ips)
   {
@@ -237,6 +243,9 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     return null;
   }
 
+  /**
+   * Converts the IDs to IPs
+   */
   @Override
   public List<String> idToIpLookup(List<String> nodeIds)
   {
@@ -277,7 +286,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   @Override
   public String toString()
   {
-    return "gceAutoScaler{" +
+    return "gceAutoScaler={" +
         "envConfig=" + envConfig +
         '}';
   }

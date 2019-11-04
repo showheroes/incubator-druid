@@ -84,8 +84,8 @@ public class GCEEnvironmentConfig
   @Override
   public String toString()
   {
-    return "GCEEnvironmentConfig{" +
-            ", projectId=" + projectId +
+    return "GCEEnvironmentConfig={" +
+            "projectId=" + projectId +
             ", zoneName=" + zoneName +
             ", targetWorkers=" + targetWorkers +
             ", instanceTemplate=" + instanceTemplate +
