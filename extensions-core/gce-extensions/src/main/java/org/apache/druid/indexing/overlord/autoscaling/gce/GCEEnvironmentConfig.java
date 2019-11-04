@@ -109,8 +109,8 @@ public class GCEEnvironmentConfig
             projectId.equals(that.projectId) &&
             zoneName.equals(that.zoneName) &&
             instanceTemplate.equals(that.instanceTemplate) &&
-            minWorkers != that.minWorkers &&
-            maxWorkers != that.maxWorkers);
+            minWorkers == that.minWorkers &&
+            maxWorkers == that.maxWorkers);
   }
 
   @Override
@@ -125,16 +125,19 @@ public class GCEEnvironmentConfig
     return result;
   }
 
+  @JsonProperty
   String getZoneName()
   {
     return zoneName;
   }
 
+  @JsonProperty
   String getProjectId()
   {
     return projectId;
   }
 
+  @JsonProperty
   String getinstanceTemplate()
   {
     return instanceTemplate;

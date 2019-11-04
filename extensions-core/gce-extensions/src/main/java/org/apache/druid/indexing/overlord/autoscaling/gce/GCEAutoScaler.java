@@ -61,14 +61,12 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   }
 
   @Override
-  @JsonProperty
   public int getMinNumWorkers()
   {
     return envConfig.getMinWorkers();
   }
 
   @Override
-  @JsonProperty
   public int getMaxNumWorkers()
   {
     return envConfig.getMaxWorkers();
@@ -81,7 +79,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     return envConfig;
   }
 
-  public static Compute createComputeService() throws IOException, GeneralSecurityException
+  private Compute createComputeService() throws IOException, GeneralSecurityException
   {
     HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
     JsonFactory jsonFactory = JacksonFactory.getDefaultInstance();
