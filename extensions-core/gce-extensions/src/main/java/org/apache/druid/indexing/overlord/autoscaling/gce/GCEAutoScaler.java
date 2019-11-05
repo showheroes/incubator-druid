@@ -56,23 +56,33 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   private static final EmittingLogger log = new EmittingLogger(GCEAutoScaler.class);
 
   private final GCEEnvironmentConfig envConfig;
+  private final int minNumWorkers;
+  private final int maxNumWorkers;
 
   @JsonCreator
-  public GCEAutoScaler(@JsonProperty("envConfig") GCEEnvironmentConfig envConfig)
+  public GCEAutoScaler(
+          @JsonProperty("minNumWorkers") int minNumWorkers,
+          @JsonProperty("maxNumWorkers") int maxNumWorkers,
+          @JsonProperty("envConfig") GCEEnvironmentConfig envConfig
+  )
   {
+    this.minNumWorkers = minNumWorkers;
+    this.maxNumWorkers = maxNumWorkers;
     this.envConfig = envConfig;
   }
 
   @Override
+  @JsonProperty
   public int getMinNumWorkers()
   {
-    return envConfig.getMinWorkers();
+    return minNumWorkers;
   }
 
   @Override
+  @JsonProperty
   public int getMaxNumWorkers()
   {
-    return envConfig.getMaxWorkers();
+    return maxNumWorkers;
   }
 
   @Override
@@ -95,7 +105,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     HttpRequestInitializer requestInitializer = new HttpCredentialsAdapter(credentials);
 
     return new Compute.Builder(httpTransport, jsonFactory, requestInitializer)
-        .setApplicationName("VR-Druid-Autoscaler/0.1")
+        .setApplicationName("Druid-Autoscaler/0.1")
         .build();
   }
 
@@ -109,7 +119,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     final String project = envConfig.getProjectId();
     final String zone = envConfig.getZoneName();
     final int targetWorkers = envConfig.getTargetWorkers();
-    final String instanceGroupManager = envConfig.getInstanceGroupManager();
+    final String managedInstanceGroupName = envConfig.getManagedInstanceGroupName();
 
     try {
       List<String> before = getRunningInstances();
@@ -123,7 +133,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
       Compute computeService = createComputeService();
       Compute.InstanceGroupManagers.Resize request =
               computeService.instanceGroupManagers().resize(project, zone,
-                      instanceGroupManager, toSize);
+                      managedInstanceGroupName, toSize);
 
       Operation response = request.execute();
       response.wait(); // making the call blocking
@@ -177,7 +187,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     try {
       final String project = envConfig.getProjectId();
       final String zone = envConfig.getZoneName();
-      final String instanceGroupManager = envConfig.getInstanceGroupManager();
+      final String managedInstanceGroupName = envConfig.getManagedInstanceGroupName();
 
       List<String> before = getRunningInstances();
 
@@ -187,7 +197,9 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
 
       Compute computeService = createComputeService();
       Compute.InstanceGroupManagers.DeleteInstances request =
-              computeService.instanceGroupManagers().deleteInstances(project, zone, instanceGroupManager, requestBody);
+              computeService
+                      .instanceGroupManagers()
+                      .deleteInstances(project, zone, managedInstanceGroupName, requestBody);
 
       Operation response = request.execute();
       response.wait(); // making the call blocking
@@ -214,13 +226,13 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     try {
       final String project = envConfig.getProjectId();
       final String zone = envConfig.getZoneName();
-      final String instanceGroupManager = envConfig.getInstanceGroupManager();
+      final String managedInstanceGroupName = envConfig.getManagedInstanceGroupName();
 
       Compute computeService = createComputeService();
       Compute.InstanceGroupManagers.ListManagedInstances request =
               computeService
                       .instanceGroupManagers()
-                      .listManagedInstances(project, zone, instanceGroupManager);
+                      .listManagedInstances(project, zone, managedInstanceGroupName);
 
       InstanceGroupManagersListManagedInstancesResponse response = request.execute();
 
@@ -334,6 +346,8 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   {
     return "gceAutoScaler={" +
         "envConfig=" + envConfig +
+        ", maxNumWorkers=" + maxNumWorkers +
+        ", minNumWorkers=" + minNumWorkers +
         '}';
   }
 
@@ -349,11 +363,9 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
 
     GCEAutoScaler that = (GCEAutoScaler) o;
 
-    if (envConfig != null ? !envConfig.equals(that.envConfig) : that.envConfig != null) {
-      return false;
-    }
-
-    return true;
+    return (envConfig != null ? envConfig.equals(that.envConfig) : that.envConfig == null) &&
+            minNumWorkers == that.minNumWorkers &&
+            maxNumWorkers == that.maxNumWorkers;
   }
 
   @Override
@@ -361,6 +373,8 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   {
     int result = 0;
     result = 31 * result + (envConfig != null ? envConfig.hashCode() : 0);
+    result = 31 * result + minNumWorkers;
+    result = 31 * result + maxNumWorkers;
     return result;
   }
 }

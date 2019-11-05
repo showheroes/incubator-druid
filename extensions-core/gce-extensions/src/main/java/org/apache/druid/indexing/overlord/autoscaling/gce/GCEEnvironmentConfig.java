@@ -40,45 +40,26 @@ public class GCEEnvironmentConfig
   private final int targetWorkers;
   private final String projectId;
   private final String zoneName;
-  private final String instanceGroupManager;
-  // used by the caller of the AutoScaler
-  private final int minWorkers;
-  private final int maxWorkers;
+  private final String managedInstanceGroupName;
 
   @JsonCreator
   public GCEEnvironmentConfig(
           @JsonProperty("targetWorkers") int targetWorkers,
-          @JsonProperty("minWorkers") int minWorkers,
-          @JsonProperty("maxWorkers") int maxWorkers,
           @JsonProperty("projectId") String projectId,
           @JsonProperty("zoneName") String zoneName,
-          @JsonProperty("instanceGroupManager") String instanceGroupManager
+          @JsonProperty("managedInstanceGroupName") String managedInstanceGroupName
   )
   {
     this.targetWorkers = targetWorkers;
-    this.minWorkers = minWorkers;
-    this.maxWorkers = maxWorkers;
     this.projectId = projectId;
     this.zoneName = zoneName;
-    this.instanceGroupManager = instanceGroupManager;
+    this.managedInstanceGroupName = managedInstanceGroupName;
   }
 
   @JsonProperty
   public int getTargetWorkers()
   {
     return targetWorkers;
-  }
-
-  @JsonProperty
-  public int getMinWorkers()
-  {
-    return minWorkers;
-  }
-
-  @JsonProperty
-  public int getMaxWorkers()
-  {
-    return maxWorkers;
   }
 
   @Override
@@ -88,9 +69,7 @@ public class GCEEnvironmentConfig
             "projectId=" + projectId +
             ", zoneName=" + zoneName +
             ", targetWorkers=" + targetWorkers +
-            ", instanceGroupManager=" + instanceGroupManager +
-            ", minWorkers=" + minWorkers +
-            ", maxWorkers=" + maxWorkers +
+            ", managedInstanceGroupName=" + managedInstanceGroupName +
             '}';
   }
 
@@ -108,9 +87,7 @@ public class GCEEnvironmentConfig
     return (targetWorkers == that.targetWorkers &&
             projectId.equals(that.projectId) &&
             zoneName.equals(that.zoneName) &&
-            instanceGroupManager.equals(that.instanceGroupManager) &&
-            minWorkers == that.minWorkers &&
-            maxWorkers == that.maxWorkers);
+            managedInstanceGroupName.equals(that.managedInstanceGroupName));
   }
 
   @Override
@@ -118,10 +95,8 @@ public class GCEEnvironmentConfig
   {
     int result = projectId != null ? projectId.hashCode() : 0;
     result = 31 * result + (zoneName != null ? zoneName.hashCode() : 0);
-    result = 31 * result + (instanceGroupManager != null ? instanceGroupManager.hashCode() : 0);
+    result = 31 * result + (managedInstanceGroupName != null ? managedInstanceGroupName.hashCode() : 0);
     result = 31 * result + targetWorkers;
-    result = 31 * result + minWorkers;
-    result = 31 * result + maxWorkers;
     return result;
   }
 
@@ -138,8 +113,8 @@ public class GCEEnvironmentConfig
   }
 
   @JsonProperty
-  String getInstanceGroupManager()
+  String getManagedInstanceGroupName()
   {
-    return instanceGroupManager;
+    return managedInstanceGroupName;
   }
 }

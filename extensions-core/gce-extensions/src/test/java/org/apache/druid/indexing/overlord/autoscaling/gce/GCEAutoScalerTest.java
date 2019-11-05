@@ -54,7 +54,7 @@ public class GCEAutoScalerTest
     Assert.assertEquals(2, autoScaler.getMinNumWorkers());
     Assert.assertEquals("winkie-country", autoScaler.getEnvConfig().getZoneName());
     Assert.assertEquals("super-project", autoScaler.getEnvConfig().getProjectId());
-    Assert.assertEquals("druid-igm", autoScaler.getEnvConfig().getInstanceGroupManager());
+    Assert.assertEquals("druid-igm", autoScaler.getEnvConfig().getManagedInstanceGroupName());
   }
 
   @Test
@@ -63,12 +63,12 @@ public class GCEAutoScalerTest
     final String json = "{\n"
             + "   \"envConfig\" : {\n"
             + "      \"targetWorkers\" : 1,\n"
-            + "      \"maxWorkers\" : 4,\n"
-            + "      \"minWorkers\" : 2,\n"
             + "      \"projectId\" : \"super-project\",\n"
             + "      \"zoneName\" : \"winkie-country\",\n"
-            + "      \"instanceGroupManager\" : \"druid-igm\"\n"
+            + "      \"managedInstanceGroupName\" : \"druid-igm\"\n"
             + "   },\n"
+            + "   \"maxNumWorkers\" : 4,\n"
+            + "   \"minNumWorkers\" : 2,\n"
             + "   \"type\" : \"gce\"\n"
             + "}";
 
