@@ -40,7 +40,7 @@ public class GCEEnvironmentConfig
   private final int targetWorkers;
   private final String projectId;
   private final String zoneName;
-  private final String instanceTemplate;
+  private final String instanceGroupManager;
   // used by the caller of the AutoScaler
   private final int minWorkers;
   private final int maxWorkers;
@@ -52,7 +52,7 @@ public class GCEEnvironmentConfig
           @JsonProperty("maxWorkers") int maxWorkers,
           @JsonProperty("projectId") String projectId,
           @JsonProperty("zoneName") String zoneName,
-          @JsonProperty("instanceTemplate") String instanceTemplate
+          @JsonProperty("instanceGroupManager") String instanceGroupManager
   )
   {
     this.targetWorkers = targetWorkers;
@@ -60,7 +60,7 @@ public class GCEEnvironmentConfig
     this.maxWorkers = maxWorkers;
     this.projectId = projectId;
     this.zoneName = zoneName;
-    this.instanceTemplate = instanceTemplate;
+    this.instanceGroupManager = instanceGroupManager;
   }
 
   @JsonProperty
@@ -88,7 +88,7 @@ public class GCEEnvironmentConfig
             "projectId=" + projectId +
             ", zoneName=" + zoneName +
             ", targetWorkers=" + targetWorkers +
-            ", instanceTemplate=" + instanceTemplate +
+            ", instanceGroupManager=" + instanceGroupManager +
             ", minWorkers=" + minWorkers +
             ", maxWorkers=" + maxWorkers +
             '}';
@@ -108,7 +108,7 @@ public class GCEEnvironmentConfig
     return (targetWorkers == that.targetWorkers &&
             projectId.equals(that.projectId) &&
             zoneName.equals(that.zoneName) &&
-            instanceTemplate.equals(that.instanceTemplate) &&
+            instanceGroupManager.equals(that.instanceGroupManager) &&
             minWorkers == that.minWorkers &&
             maxWorkers == that.maxWorkers);
   }
@@ -118,7 +118,7 @@ public class GCEEnvironmentConfig
   {
     int result = projectId != null ? projectId.hashCode() : 0;
     result = 31 * result + (zoneName != null ? zoneName.hashCode() : 0);
-    result = 31 * result + (instanceTemplate != null ? instanceTemplate.hashCode() : 0);
+    result = 31 * result + (instanceGroupManager != null ? instanceGroupManager.hashCode() : 0);
     result = 31 * result + targetWorkers;
     result = 31 * result + minWorkers;
     result = 31 * result + maxWorkers;
@@ -138,8 +138,8 @@ public class GCEEnvironmentConfig
   }
 
   @JsonProperty
-  String getinstanceTemplate()
+  String getInstanceGroupManager()
   {
-    return instanceTemplate;
+    return instanceGroupManager;
   }
 }

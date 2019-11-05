@@ -30,7 +30,10 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
 import com.google.api.services.compute.model.Instance;
+import com.google.api.services.compute.model.InstanceGroupManagersDeleteInstancesRequest;
+import com.google.api.services.compute.model.InstanceGroupManagersListManagedInstancesResponse;
 import com.google.api.services.compute.model.InstanceList;
+import com.google.api.services.compute.model.ManagedInstance;
 import com.google.api.services.compute.model.Operation;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -106,25 +109,32 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     final String project = envConfig.getProjectId();
     final String zone = envConfig.getZoneName();
     final int targetWorkers = envConfig.getTargetWorkers();
-    final String instanceTemplate = envConfig.getinstanceTemplate();
+    final String instanceGroupManager = envConfig.getInstanceGroupManager();
 
     try {
-      List<String> instanceIds = new ArrayList<>();
-      Compute computeService = createComputeService();
-      for (int i = 0; i < targetWorkers; ++i) {
-        Instance instance = new Instance();
-        Compute.Instances.Insert request =
-                computeService.instances().insert(project, zone, instance);
-        request.setSourceInstanceTemplate(instanceTemplate);
-        Operation op = request.execute();
-        if (op.getError() == null) {
-          instanceIds.add(op.getName());
-        } else {
-          log.error("Unable to provision instance: %s", op.getError().toPrettyString());
-        }
+      List<String> before = getRunningInstances();
+      int toSize = Math.min(before.size() + targetWorkers, getMaxNumWorkers());
+
+      if (before.size() >= toSize) {
+        // nothing to scale
+        return new AutoScalingData(new ArrayList<>());
       }
 
-      return new AutoScalingData(instanceIds);
+      Compute computeService = createComputeService();
+      Compute.InstanceGroupManagers.Resize request =
+              computeService.instanceGroupManagers().resize(project, zone,
+                      instanceGroupManager, toSize);
+
+      Operation response = request.execute();
+      response.wait(); // making the call blocking
+
+      if (response.getError() == null) {
+        List<String> after = getRunningInstances();
+        after.removeAll(before); // these should be the new ones
+        return new AutoScalingData(after);
+      } else {
+        log.error("Unable to provision instances: %s", response.getError().toPrettyString());
+      }
     }
     catch (Exception e) {
       log.error(e, "Unable to provision any gce instances.");
@@ -165,27 +175,63 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     }
 
     try {
-      List<String> deleted = new ArrayList<>();
       final String project = envConfig.getProjectId();
       final String zone = envConfig.getZoneName();
+      final String instanceGroupManager = envConfig.getInstanceGroupManager();
+
+      List<String> before = getRunningInstances();
+
+      InstanceGroupManagersDeleteInstancesRequest requestBody =
+              new InstanceGroupManagersDeleteInstancesRequest();
+      requestBody.setInstances(ids);
+
       Compute computeService = createComputeService();
-      for (String id : ids) {
-        Compute.Instances.Delete request = computeService.instances().delete(project, zone, id);
-        Operation op = request.execute();
-        if (op.getError() == null) {
-          deleted.add(id);
-        } else {
-          log.error("Unable to terminate %s: %s", id, op.getError().toPrettyString());
-        }
+      Compute.InstanceGroupManagers.DeleteInstances request =
+              computeService.instanceGroupManagers().deleteInstances(project, zone, instanceGroupManager, requestBody);
+
+      Operation response = request.execute();
+      response.wait(); // making the call blocking
+
+      if (response.getError() != null) {
+        log.error("Unable to terminate instances: %s", response.getError().toPrettyString());
+        List<String> after = getRunningInstances();
+        before.removeAll(after); // keep only the ones no more present
+        return new AutoScalingData(before);
       }
 
-      return new AutoScalingData(deleted);
+      return new AutoScalingData(ids);
     }
     catch (Exception e) {
       log.error(e, "Unable to terminate any instances.");
     }
 
     return null;
+  }
+
+  private List<String> getRunningInstances()
+  {
+    ArrayList<String> ids = new ArrayList<>();
+    try {
+      final String project = envConfig.getProjectId();
+      final String zone = envConfig.getZoneName();
+      final String instanceGroupManager = envConfig.getInstanceGroupManager();
+
+      Compute computeService = createComputeService();
+      Compute.InstanceGroupManagers.ListManagedInstances request =
+              computeService
+                      .instanceGroupManagers()
+                      .listManagedInstances(project, zone, instanceGroupManager);
+
+      InstanceGroupManagersListManagedInstancesResponse response = request.execute();
+
+      for (ManagedInstance mi : response.getManagedInstances()) {
+        ids.add(mi.getInstance());
+      }
+    }
+    catch (Exception e) {
+      log.error(e, "Unable to get instances.");
+    }
+    return ids;
   }
 
   private String buildFilter(List<String> list, String key)
