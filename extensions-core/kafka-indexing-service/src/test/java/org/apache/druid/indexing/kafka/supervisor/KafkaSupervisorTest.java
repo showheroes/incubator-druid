@@ -3337,7 +3337,8 @@ public class KafkaSupervisorTest extends EasyMockSupport
         useEarliestOffset,
         new Period("PT30M"),
         lateMessageRejectionPeriod,
-        earlyMessageRejectionPeriod
+        earlyMessageRejectionPeriod,
+        null
     );
 
     KafkaIndexTaskClientFactory taskClientFactory = new KafkaIndexTaskClientFactory(
@@ -3444,7 +3445,8 @@ public class KafkaSupervisorTest extends EasyMockSupport
         useEarliestOffset,
         new Period("PT30M"),
         lateMessageRejectionPeriod,
-        earlyMessageRejectionPeriod
+        earlyMessageRejectionPeriod,
+        null
     );
 
     KafkaIndexTaskClientFactory taskClientFactory = new KafkaIndexTaskClientFactory(
@@ -3555,7 +3557,8 @@ public class KafkaSupervisorTest extends EasyMockSupport
         useEarliestOffset,
         new Period("PT30M"),
         lateMessageRejectionPeriod,
-        earlyMessageRejectionPeriod
+        earlyMessageRejectionPeriod,
+        null
     );
 
     KafkaIndexTaskClientFactory taskClientFactory = new KafkaIndexTaskClientFactory(
