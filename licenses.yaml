@@ -3860,9 +3860,19 @@ name: Google Cloud Storage JSON API
 license_category: binary
 module: extensions/druid-google-extensions
 license_name: Apache License version 2.0
-version: v1-rev79-1.22.0
+version: v1-rev158-1.25.0
 libraries:
   - com.google.apis: google-api-services-storage
+
+---
+
+name: Google Compute Engine API
+license_category: binary
+module: extensions/gce-extensions
+license_name: Apache License version 2.0
+version: v1-rev210-1.22.0
+libraries:
+- com.google.apis: google-api-services-compute
 
 ---
 
