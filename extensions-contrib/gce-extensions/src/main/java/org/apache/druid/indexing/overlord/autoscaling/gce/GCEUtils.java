@@ -19,14 +19,15 @@
 
 package org.apache.druid.indexing.overlord.autoscaling.gce;
 
+import org.apache.druid.java.util.common.StringUtils;
+
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 
 /**
- * Simple collection of utilities extracted to ease testing and simplify the GCEAutoScaler class
+ * Simple collection of utilities extracted to ease testing and simplify the GceAutoScaler class
  */
-public class GCEUtils
+public class GceUtils
 {
 
   /**
@@ -58,15 +59,15 @@ public class GCEUtils
     Iterator<String> it = list.iterator();
 
     StringBuilder sb = new StringBuilder();
-    sb.append(String.format(Locale.US, "(%s = \"%s\")", key, it.next()));
+    sb.append(StringUtils.format("(%s = \"%s\")", key, it.next()));
     while (it.hasNext()) {
-      sb.append(" OR ").append(String.format(Locale.US, "(%s = \"%s\")", key, it.next()));
+      sb.append(" OR ").append(StringUtils.format("(%s = \"%s\")", key, it.next()));
     }
     return sb.toString();
   }
 
   // cannot build it!
-  private GCEUtils()
+  private GceUtils()
   {
   }
 }

@@ -21,10 +21,11 @@ package org.apache.druid.indexing.overlord.autoscaling.gce;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.base.Preconditions;
 
 /**
  */
-public class GCEEnvironmentConfig
+public class GceEnvironmentConfig
 {
   /**
    * numInstances: the number of workers to try to spawn at each call to provision
@@ -43,17 +44,24 @@ public class GCEEnvironmentConfig
   private final String managedInstanceGroupName;
 
   @JsonCreator
-  public GCEEnvironmentConfig(
+  public GceEnvironmentConfig(
           @JsonProperty("numInstances") int numInstances,
           @JsonProperty("projectId") String projectId,
           @JsonProperty("zoneName") String zoneName,
           @JsonProperty("managedInstanceGroupName") String managedInstanceGroupName
   )
   {
+    Preconditions.checkArgument(numInstances > 0,
+                                "numIntances must be greater than 0");
     this.numInstances = numInstances;
-    this.projectId = projectId;
-    this.zoneName = zoneName;
-    this.managedInstanceGroupName = managedInstanceGroupName;
+    this.projectId = Preconditions.checkNotNull(projectId,
+                                                "projectId must be not null");
+    this.zoneName = Preconditions.checkNotNull(zoneName,
+                                               "zoneName nust be not null");
+    this.managedInstanceGroupName = Preconditions.checkNotNull(
+            managedInstanceGroupName,
+            "managedInstanceGroupName must be not null"
+    );
   }
 
   @JsonProperty
@@ -84,7 +92,7 @@ public class GCEEnvironmentConfig
   @Override
   public String toString()
   {
-    return "GCEEnvironmentConfig={" +
+    return "GceEnvironmentConfig={" +
             "projectId=" + projectId +
             ", zoneName=" + zoneName +
             ", numInstances=" + numInstances +
@@ -102,7 +110,7 @@ public class GCEEnvironmentConfig
       return false;
     }
 
-    GCEEnvironmentConfig that = (GCEEnvironmentConfig) o;
+    GceEnvironmentConfig that = (GceEnvironmentConfig) o;
     return (numInstances == that.numInstances &&
             projectId.equals(that.projectId) &&
             zoneName.equals(that.zoneName) &&

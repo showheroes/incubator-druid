@@ -19,24 +19,14 @@
 
 package org.apache.druid.indexing.overlord.autoscaling.gce;
 
-import com.fasterxml.jackson.databind.Module;
-import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.google.inject.Binder;
-import org.apache.druid.initialization.DruidModule;
 
-import java.util.Collections;
-import java.util.List;
-
-public class GceModule implements DruidModule
+/**
+ * Provides a specialized Exception type for the GCE module
+ */
+public class GceServiceException extends Exception
 {
-  @Override
-  public List<? extends Module> getJacksonModules()
+  public GceServiceException(String message)
   {
-    return Collections.singletonList(new SimpleModule("DruidGCEModule").registerSubtypes(GceAutoScaler.class));
-  }
-
-  @Override
-  public void configure(Binder binder)
-  {
+    super(message);
   }
 }
