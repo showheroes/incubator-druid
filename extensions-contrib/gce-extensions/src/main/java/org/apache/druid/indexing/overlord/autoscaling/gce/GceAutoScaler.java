@@ -185,6 +185,7 @@ public class GceAutoScaler implements AutoScaler<GceEnvironmentConfig>
     String status = operation.getStatus();
     String opId = operation.getName();
     while (operation != null && !"DONE".equals(status)) {
+      log.info("Waiting for operation %s to end", opId);
       Thread.sleep(POLL_INTERVAL_MS);
       Compute.ZoneOperations.Get get = compute.zoneOperations().get(
           envConfig.getProjectId(),
