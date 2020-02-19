@@ -240,6 +240,7 @@ public class GceAutoScaler implements AutoScaler<GceEnvironmentConfig>
           if (after.size() == toSize) {
             break;
           }
+          log.info("Machines not up yet, waiting");
           Thread.sleep(POLL_INTERVAL_MS);
         }
         after.removeAll(before); // these should be the new ones
@@ -334,6 +335,7 @@ public class GceAutoScaler implements AutoScaler<GceEnvironmentConfig>
           if (after.size() == (before.size() - ids.size())) {
             break;
           }
+          log.info("Machines not down yet, waiting");
           Thread.sleep(POLL_INTERVAL_MS);
         }
         before.removeAll(after); // keep only the ones no more present
