@@ -386,7 +386,7 @@ public class GceAutoScaler implements AutoScaler<GceEnvironmentConfig>
   @Override
   public List<String> ipToIdLookup(List<String> ips)
   {
-    log.debug("Asked IPs -> IDs for: [%s]", String.join(",", ips));
+    log.info("Asked IPs -> IDs for: [%s]", String.join(",", ips));
 
     if (ips.isEmpty()) {
       return new ArrayList<>();
@@ -444,7 +444,7 @@ public class GceAutoScaler implements AutoScaler<GceEnvironmentConfig>
   @Override
   public List<String> idToIpLookup(List<String> nodeIds)
   {
-    log.debug("Asked IDs -> IPs for: [%s]", String.join(",", nodeIds));
+    log.info("Asked IDs -> IPs for: [%s]", String.join(",", nodeIds));
 
     if (nodeIds.isEmpty()) {
       return new ArrayList<>();
