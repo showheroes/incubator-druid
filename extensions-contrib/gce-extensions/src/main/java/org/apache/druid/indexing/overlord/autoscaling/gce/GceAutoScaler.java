@@ -35,18 +35,22 @@ import com.google.api.services.compute.model.InstanceGroupManagersDeleteInstance
 import com.google.api.services.compute.model.InstanceGroupManagersListManagedInstancesResponse;
 import com.google.api.services.compute.model.InstanceList;
 import com.google.api.services.compute.model.ManagedInstance;
+import com.google.api.services.compute.model.NetworkInterface;
 import com.google.api.services.compute.model.Operation;
+import com.google.common.base.Preconditions;
 import com.google.common.net.InetAddresses;
+import org.apache.curator.shaded.com.google.common.annotations.VisibleForTesting;
 import org.apache.druid.indexing.overlord.autoscaling.AutoScaler;
 import org.apache.druid.indexing.overlord.autoscaling.AutoScalingData;
 import org.apache.druid.indexing.overlord.autoscaling.SimpleWorkerProvisioningConfig;
+import org.apache.druid.java.util.common.StringUtils;
 import org.apache.druid.java.util.emitter.EmittingLogger;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.Objects;
 
 /**
  * This module permits the autoscaling of the workers in GCE
@@ -57,26 +61,36 @@ import java.util.Locale;
  *   where the prefix is chosen by you and abcd is a suffix assigned by GCE
  */
 @JsonTypeName("gce")
-public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
+public class GceAutoScaler implements AutoScaler<GceEnvironmentConfig>
 {
-  private static final EmittingLogger log = new EmittingLogger(GCEAutoScaler.class);
+  private static final EmittingLogger log = new EmittingLogger(GceAutoScaler.class);
 
-  private final GCEEnvironmentConfig envConfig;
+  private final GceEnvironmentConfig envConfig;
   private final int minNumWorkers;
   private final int maxNumWorkers;
   private final SimpleWorkerProvisioningConfig config;  // For future use
 
   private Compute cachedComputeService = null;
 
+  private static final long POLL_INTERVAL_MS = 5 * 1000;  // 5 sec
+  private static final int RUNNING_INSTANCES_MAX_RETRIES = 10;
+  private static final int OPERATION_END_MAX_RETRIES = 10;
+
   @JsonCreator
-  public GCEAutoScaler(
+  public GceAutoScaler(
           @JsonProperty("minNumWorkers") int minNumWorkers,
           @JsonProperty("maxNumWorkers") int maxNumWorkers,
-          @JsonProperty("envConfig") GCEEnvironmentConfig envConfig,
+          @JsonProperty("envConfig") GceEnvironmentConfig envConfig,
           @JacksonInject SimpleWorkerProvisioningConfig config
   )
   {
+    Preconditions.checkArgument(minNumWorkers > 0,
+                                "minNumWorkers must be greater than 0");
     this.minNumWorkers = minNumWorkers;
+    Preconditions.checkArgument(maxNumWorkers > 0,
+                                "maxNumWorkers must be greater than 0");
+    Preconditions.checkArgument(maxNumWorkers > minNumWorkers,
+                                "maxNumWorkers must be greater than minNumWorkers");
     this.maxNumWorkers = maxNumWorkers;
     this.envConfig = envConfig;
     this.config = config;
@@ -85,10 +99,11 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   /**
    * CAVEAT: this is meant to be used only for testing passing a mock version of Compute
    */
-  public GCEAutoScaler(
+  @VisibleForTesting
+  public GceAutoScaler(
           int minNumWorkers,
           int maxNumWorkers,
-          GCEEnvironmentConfig envConfig,
+          GceEnvironmentConfig envConfig,
           SimpleWorkerProvisioningConfig config,
           Compute compute
   )
@@ -113,24 +128,23 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
 
   @Override
   @JsonProperty
-  public GCEEnvironmentConfig getEnvConfig()
+  public GceEnvironmentConfig getEnvConfig()
   {
     return envConfig;
   }
 
   private synchronized Compute createComputeService()
-      throws IOException, GeneralSecurityException, InterruptedException
+      throws IOException, GeneralSecurityException, InterruptedException, GceServiceException
   {
-    final int max_retries = 5;
-    final long retries_interval = 5 * 1000; // 5 secs.
+    final int maxRetries = 5;
 
     int retries = 0;
-    while (cachedComputeService == null && retries < max_retries) {
+    while (cachedComputeService == null && retries < maxRetries) {
       if (retries > 0) {
-        Thread.sleep(retries_interval);
+        Thread.sleep(POLL_INTERVAL_MS);
       }
 
-      log.info("Creating new ComputeService [%d/%d]", retries + 1, max_retries);
+      log.info("Creating new ComputeService [%d/%d]", retries + 1, maxRetries);
 
       try {
         HttpTransport httpTransport = GoogleNetHttpTransport.newTrustedTransport();
@@ -147,8 +161,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
         }
 
         if (credential.getClientAuthentication() != null) {
-          log.error("Not using a service account, terminating");
-          System.exit(1);
+          throw new GceServiceException("Not using a service account");
         }
 
         cachedComputeService = new Compute.Builder(httpTransport, jsonFactory, credential)
@@ -170,12 +183,14 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
       Compute compute,
       Operation operation) throws Exception
   {
-    final long pollInterval = 5 * 1000;  // 5 sec
-
     String status = operation.getStatus();
     String opId = operation.getName();
-    while (operation != null && !"DONE".equals(status)) {
-      Thread.sleep(pollInterval);
+    for (int i = 0; i < OPERATION_END_MAX_RETRIES; i++) {
+      if (operation == null || "DONE".equals(status)) {
+        return operation == null ? null : operation.getError();
+      }
+      log.info("Waiting for operation %s to end", opId);
+      Thread.sleep(POLL_INTERVAL_MS);
       Compute.ZoneOperations.Get get = compute.zoneOperations().get(
           envConfig.getProjectId(),
           envConfig.getZoneName(),
@@ -186,7 +201,9 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
         status = operation.getStatus();
       }
     }
-    return operation == null ? null : operation.getError();
+    throw new InterruptedException(
+        StringUtils.format("Timed out waiting for operation %s to complete", opId)
+    );
   }
 
   /**
@@ -221,9 +238,20 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
       Operation response = request.execute();
       Operation.Error err = waitForOperationEnd(computeService, response);
       if (err == null || err.isEmpty()) {
-        List<String> after = getRunningInstances();
+        List<String> after = null;
+        // as the waitForOperationEnd only waits for the operation to be scheduled
+        // this loop waits until the requested machines actually go up (or up to a
+        // certain amount of retries in checking)
+        for (int i = 0; i < RUNNING_INSTANCES_MAX_RETRIES; i++) {
+          after = getRunningInstances();
+          if (after.size() == toSize) {
+            break;
+          }
+          log.info("Machines not up yet, waiting");
+          Thread.sleep(POLL_INTERVAL_MS);
+        }
         after.removeAll(before); // these should be the new ones
-        log.debug("Added instances [%s]", String.join(",", after));
+        log.info("Added instances [%s]", String.join(",", after));
         return new AutoScalingData(after);
       } else {
         log.error("Unable to provision instances: %s", err.toPrettyString());
@@ -237,7 +265,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   }
 
   /**
-   * Terminats the instances in the list of IPs provided by the caller
+   * Terminates the instances in the list of IPs provided by the caller
    */
   @Override
   public AutoScalingData terminate(List<String> ips)
@@ -267,14 +295,14 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     for (String name : names) {
       instances.add(
           // convert the name into a URL's path to be used in calls to the API
-          String.format(Locale.US, "zones/%s/instances/%s", envConfig.getZoneName(), name)
+          StringUtils.format("zones/%s/instances/%s", envConfig.getZoneName(), name)
       );
     }
     return instances;
   }
 
   /**
-   * Terminats the instances in the list of IDs provided by the caller
+   * Terminates the instances in the list of IDs provided by the caller
    */
   @Override
   public AutoScalingData terminateWithIds(List<String> ids)
@@ -305,7 +333,18 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
       Operation response = request.execute();
       Operation.Error err = waitForOperationEnd(computeService, response);
       if (err == null || err.isEmpty()) {
-        List<String> after = getRunningInstances();
+        List<String> after = null;
+        // as the waitForOperationEnd only waits for the operation to be scheduled
+        // this loop waits until the requested machines actually go down (or up to a
+        // certain amount of retries in checking)
+        for (int i = 0; i < RUNNING_INSTANCES_MAX_RETRIES; i++) {
+          after = getRunningInstances();
+          if (after.size() == (before.size() - ids.size())) {
+            break;
+          }
+          log.info("Machines not down yet, waiting");
+          Thread.sleep(POLL_INTERVAL_MS);
+        }
         before.removeAll(after); // keep only the ones no more present
         return new AutoScalingData(before);
       } else {
@@ -322,6 +361,8 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   // Returns the list of the IDs of the machines running in the MIG
   private List<String> getRunningInstances()
   {
+    final long maxResults = 500L; // 500 is sadly the max, see below
+
     ArrayList<String> ids = new ArrayList<>();
     try {
       final String project = envConfig.getProjectId();
@@ -335,10 +376,10 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
                       .listManagedInstances(project, zone, managedInstanceGroupName);
       // Notice that while the doc says otherwise, there is not nextPageToken to page
       // through results and so everything needs to be in the same page
-      request.setMaxResults(500L); // 500 is sadly the max
+      request.setMaxResults(maxResults);
       InstanceGroupManagersListManagedInstancesResponse response = request.execute();
       for (ManagedInstance mi : response.getManagedInstances()) {
-        ids.add(GCEUtils.extractNameFromInstance(mi.getInstance()));
+        ids.add(GceUtils.extractNameFromInstance(mi.getInstance()));
       }
       log.debug("Found running instances [%s]", String.join(",", ids));
     }
@@ -354,7 +395,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   @Override
   public List<String> ipToIdLookup(List<String> ips)
   {
-    log.debug("Asked IPs -> IDs for: [%s]", String.join(",", ips));
+    log.info("Asked IPs -> IDs for: [%s]", String.join(",", ips));
 
     if (ips.isEmpty()) {
       return new ArrayList<>();
@@ -374,7 +415,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
       Compute computeService = createComputeService();
       Compute.Instances.List request = computeService.instances().list(project, zone);
       // Cannot filter by IP atm, see below
-      // request.setFilter(GCEUtils.buildFilter(ips, "networkInterfaces[0].networkIP"));
+      // request.setFilter(GceUtils.buildFilter(ips, "networkInterfaces[0].networkIP"));
 
       List<String> instanceIds = new ArrayList<>();
       InstanceList response;
@@ -386,8 +427,10 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
         for (Instance instance : response.getItems()) {
           // This stupid look up is needed because atm it is not possible to filter
           // by IP, see https://issuetracker.google.com/issues/73455339
-          if (ips.contains(instance.getNetworkInterfaces().get(0).getNetworkIP())) {
-            instanceIds.add(instance.getName());
+          for (NetworkInterface ni : instance.getNetworkInterfaces()) {
+            if (ips.contains(ni.getNetworkIP())) {
+              instanceIds.add(instance.getName());
+            }
           }
         }
         request.setPageToken(response.getNextPageToken());
@@ -410,7 +453,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   @Override
   public List<String> idToIpLookup(List<String> nodeIds)
   {
-    log.debug("Asked IDs -> IPs for: [%s]", String.join(",", nodeIds));
+    log.info("Asked IDs -> IPs for: [%s]", String.join(",", nodeIds));
 
     if (nodeIds.isEmpty()) {
       return new ArrayList<>();
@@ -422,7 +465,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
     try {
       Compute computeService = createComputeService();
       Compute.Instances.List request = computeService.instances().list(project, zone);
-      request.setFilter(GCEUtils.buildFilter(nodeIds, "name"));
+      request.setFilter(GceUtils.buildFilter(nodeIds, "name"));
 
       List<String> instanceIps = new ArrayList<>();
       InstanceList response;
@@ -477,9 +520,9 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
       return false;
     }
 
-    GCEAutoScaler that = (GCEAutoScaler) o;
+    GceAutoScaler that = (GceAutoScaler) o;
 
-    return (envConfig != null ? envConfig.equals(that.envConfig) : that.envConfig == null) &&
+    return Objects.equals(envConfig, that.envConfig) &&
             minNumWorkers == that.minNumWorkers &&
             maxNumWorkers == that.maxNumWorkers;
   }
@@ -488,7 +531,7 @@ public class GCEAutoScaler implements AutoScaler<GCEEnvironmentConfig>
   public int hashCode()
   {
     int result = 0;
-    result = 31 * result + (envConfig != null ? envConfig.hashCode() : 0);
+    result = 31 * result + Objects.hashCode(envConfig);
     result = 31 * result + minNumWorkers;
     result = 31 * result + maxNumWorkers;
     return result;
