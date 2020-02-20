@@ -74,6 +74,7 @@ public class GceAutoScaler implements AutoScaler<GceEnvironmentConfig>
 
   private static final long POLL_INTERVAL_MS = 5 * 1000;  // 5 sec
   private static final int RUNNING_INSTANCES_MAX_RETRIES = 10;
+  private static final int OPERATION_END_MAX_RETRIES = 10;
 
   @JsonCreator
   public GceAutoScaler(
@@ -184,7 +185,10 @@ public class GceAutoScaler implements AutoScaler<GceEnvironmentConfig>
   {
     String status = operation.getStatus();
     String opId = operation.getName();
-    while (operation != null && !"DONE".equals(status)) {
+    for (int i = 0; i < OPERATION_END_MAX_RETRIES; i++) {
+      if (operation == null || "DONE".equals(status)) {
+        return operation == null ? null : operation.getError();
+      }
       log.info("Waiting for operation %s to end", opId);
       Thread.sleep(POLL_INTERVAL_MS);
       Compute.ZoneOperations.Get get = compute.zoneOperations().get(
@@ -197,7 +201,9 @@ public class GceAutoScaler implements AutoScaler<GceEnvironmentConfig>
         status = operation.getStatus();
       }
     }
-    return operation == null ? null : operation.getError();
+    throw new InterruptedException(
+        StringUtils.format("Timed out waiting for operation %s to complete", opId)
+    );
   }
 
   /**
@@ -245,7 +251,7 @@ public class GceAutoScaler implements AutoScaler<GceEnvironmentConfig>
           Thread.sleep(POLL_INTERVAL_MS);
         }
         after.removeAll(before); // these should be the new ones
-        log.debug("Added instances [%s]", String.join(",", after));
+        log.info("Added instances [%s]", String.join(",", after));
         return new AutoScalingData(after);
       } else {
         log.error("Unable to provision instances: %s", err.toPrettyString());
