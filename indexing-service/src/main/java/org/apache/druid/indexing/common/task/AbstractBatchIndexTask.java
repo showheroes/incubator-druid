@@ -247,6 +247,9 @@ public abstract class AbstractBatchIndexTask extends AbstractTask
 
   public TaskLockHelper getTaskLockHelper()
   {
+    if (taskLockHelper == null) {
+      taskLockHelper = new TaskLockHelper(false);
+    }
     return Preconditions.checkNotNull(taskLockHelper, "taskLockHelper is not initialized yet");
   }
 
