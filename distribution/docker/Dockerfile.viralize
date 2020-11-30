@@ -1,5 +1,23 @@
-FROM apache/druid:0.20.0
+FROM amd64/busybox:1.30.0-glibc as busybox
 
+FROM gcr.io/distroless/java:8
+
+COPY --from=busybox /bin/busybox /busybox/busybox
+RUN ["/busybox/busybox", "--install", "/bin"]
+
+WORKDIR /opt
+RUN wget -q https://github.com/Viralize/incubator-druid/releases/download/0.20.0-indexer-fix/apache-druid-0.20.0-indexer_fix-bin.tar.gz \
+&& tar xzf apache-druid-0.20.0-indexer_fix-bin.tar.gz -C /opt \
+&& ln -s /opt/apache-druid-0.20.0-SNAPSHOT /opt/druid && \
+   rm /opt/apache-druid-0.20.0-indexer_fix-bin.tar.gz
+
+RUN addgroup -S -g 1000 druid \
+ && adduser -S -u 1000 -D -H -h /opt/druid -s /bin/sh -g '' -G druid druid \
+ && mkdir -p /opt/druid/var \
+ && chown -R druid:druid /opt \
+ && chmod 775 /opt/druid/var
+
+WORKDIR /opt/druid
 # pull dependencies
 RUN java -cp "lib/*" -Ddruid.extensions.directory="extensions" -Ddruid.extensions.hadoopDependenciesDir="hadoop-dependencies" org.apache.druid.cli.Main tools pull-deps --no-default-hadoop -c "org.apache.druid.extensions.contrib:statsd-emitter:0.20.0" -c "org.apache.druid.extensions.contrib:gce-extensions:0.20.0"
 
@@ -7,5 +25,4 @@ ADD http://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-latest-hadoop2.ja
 COPY distribution/docker/run-druid.sh /opt/druid/run-druid.sh
 USER root
 RUN chmod +x /opt/druid/run-druid.sh
-WORKDIR /opt/druid
 ENTRYPOINT ["./run-druid.sh"]
