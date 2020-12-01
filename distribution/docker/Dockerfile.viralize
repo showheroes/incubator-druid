@@ -1,0 +1,11 @@
+FROM apache/druid:0.20.0
+
+# pull dependencies
+RUN java -cp "lib/*" -Ddruid.extensions.directory="extensions" -Ddruid.extensions.hadoopDependenciesDir="hadoop-dependencies" org.apache.druid.cli.Main tools pull-deps --no-default-hadoop -c "org.apache.druid.extensions.contrib:statsd-emitter:0.20.0" -c "org.apache.druid.extensions.contrib:gce-extensions:0.20.0"
+
+ADD http://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-latest-hadoop2.jar /opt/druid/lib/gcs-connector-latest-hadoop2.jar
+COPY distribution/docker/run-druid.sh /opt/druid/run-druid.sh
+USER root
+RUN chmod +x /opt/druid/run-druid.sh
+WORKDIR /opt/druid
+ENTRYPOINT ["./run-druid.sh"]
