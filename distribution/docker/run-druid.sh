@@ -18,4 +18,4 @@ fi
 CLASSPATH="$CONF_DIR/_common:$CONF_DIR/$DRUID_NODE_TYPE:$LIB_DIR/*"
 JAVA_OPTS=`cat $CONF_DIR/$DRUID_NODE_TYPE/jvm.config | xargs`
 
-exec ${JAVA} ${JAVA_OPTS} -cp $CLASSPATH org.apache.druid.cli.Main server $DRUID_MAIN_CLASS >> ${LOG_DIR}/druid-${DRUID_NODE_TYPE}.stdout 2>> ${LOG_DIR}/druid-${DRUID_NODE_TYPE}.stderr
+exec ${JAVA} ${JAVA_OPTS} -cp $CLASSPATH org.apache.druid.cli.Main server $DRUID_MAIN_CLASS
