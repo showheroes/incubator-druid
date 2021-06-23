@@ -5,7 +5,7 @@ set -euo pipefail
 CACHE_FROM="$IMAGE_NAME:latest"
 docker pull "$CACHE_FROM" || CACHE_FROM=''
 
-docker build -f distribution/docker/Dockerfile.viralize -t $TARGET_IMAGE --cache-from=$CACHE_FROM
+docker build -f distribution/docker/Dockerfile.viralize -t $TARGET_IMAGE --cache-from=$CACHE_FROM .
 
 # IMAGE_NAME and TARGET_IMAGE defined in jenkins environment
 # CHANGE_BRANCH is set on PR, BRANCH_NAME is used on master builds
