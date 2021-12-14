@@ -23,6 +23,9 @@ RUN java -cp "lib/*" -Ddruid.extensions.directory="extensions" -Ddruid.extension
 
 ADD http://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-latest-hadoop2.jar /opt/druid/lib/gcs-connector-latest-hadoop2.jar
 COPY distribution/docker/run-druid.sh /opt/druid/run-druid.sh
+COPY --from=opsgang/zip:3.0.3 /zip /opt/zip
 USER root
+RUN /opt/zip -q -d ./lib/log4j-core-2.8.2.jar org/apache/logging/log4j/core/lookup/JndiLookup.class
+
 RUN chmod +x /opt/druid/run-druid.sh
 ENTRYPOINT ["./run-druid.sh"]
