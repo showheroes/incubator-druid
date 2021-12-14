@@ -1,5 +1,6 @@
 FROM apache/druid:0.20.0
 
+COPY --from=opsgang/zip:3.0.3 /zip /opt/zip
 # pull dependencies
 RUN java -cp "lib/*" -Ddruid.extensions.directory="extensions" -Ddruid.extensions.hadoopDependenciesDir="hadoop-dependencies" org.apache.druid.cli.Main tools pull-deps --no-default-hadoop -c "org.apache.druid.extensions.contrib:statsd-emitter:0.20.0" -c "org.apache.druid.extensions.contrib:gce-extensions:0.20.0"
 
@@ -8,4 +9,6 @@ COPY distribution/docker/run-druid.sh /opt/druid/run-druid.sh
 USER root
 RUN chmod +x /opt/druid/run-druid.sh
 WORKDIR /opt/druid
+RUN /opt/zip -q -d ./lib/log4j-core-2.8.2.jar org/apache/logging/log4j/core/lookup/JndiLookup.class && \
+    /opt/zip -q -d ./extensions/druid-influxdb-emitter/log4j-core-2.8.2.jar org/apache/logging/log4j/core/lookup/JndiLookup.class
 ENTRYPOINT ["./run-druid.sh"]
